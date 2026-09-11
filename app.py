@@ -561,8 +561,20 @@ async def handle_gsc_sitemaps(request):
     result = await get_sitemaps()
     return web.json_response(result)
 
+
+@web.middleware
+async def cors_middleware(request, handler):
+    if request.method == "OPTIONS":
+        resp = web.Response(status=204)
+    else:
+        resp = await handler(request)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return resp
+
 def main():
-    app = web.Application()
+    app = web.Application(middlewares=[cors_middleware])
     app.router.add_get("/", handle_index)
     app.router.add_post("/api/analyze", handle_analyze)
     app.router.add_post("/api/ai-fixes", handle_ai_fixes)
