@@ -210,6 +210,9 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:6px;paddin
 <script>
 let cur={};
 let API_BASE=localStorage.getItem("seoforge_api")||"";
+if(!API_BASE && location.hostname.includes("github.io")){API_BASE=prompt("Enter your backend API URL (e.g. https://your-tunnel.trycloudflare.com):","")||"";if(API_BASE)localStorage.setItem("seoforge_api",API_BASE);}
+if(!API_BASE && !location.hostname.includes("localhost") && !location.hostname.includes("127.0.0.1")){document.addEventListener("DOMContentLoaded",()=>{const b=document.createElement("div");b.style.cssText="background:#eab308;color:#000;text-align:center;padding:8px;font-size:12px;font-weight:600;position:fixed;top:40px;left:0;right:0;z-index:99;cursor:pointer";b.textContent="⚠ No backend configured. Click here to set API URL.";b.onclick=()=>{const u=prompt("Backend API URL:",API_BASE);if(u){API_BASE=u;localStorage.setItem("seoforge_api",u);location.reload()}};document.body.appendChild(b)});}
+
 function showPage(p){document.querySelectorAll('.section').forEach(s=>s.style.display='none');document.getElementById('page-'+p).style.display='block';document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));event.target.classList.add('active');if(p==='gsc')loadGSC();if(p==='email')loadEmailConfig();if(p==='schedule')loadSchedule();if(p==='history')loadHistory()}
 function showAuditTab(t){document.querySelectorAll('#audit-tabs .tab-btn').forEach(b=>b.classList.remove('active'));event.target.classList.add('active');['checks','ai-fixes','speed','social','report'].forEach(k=>{const el=document.getElementById('audit-'+k);if(el){el.style.display=k===t?'block':'none';if(k==='checks')el.className=k===t?'grid':'hidden'}})}
 function show(t){document.getElementById('loading-text').textContent=t||'Working...';document.getElementById('loading').style.display='flex'}
