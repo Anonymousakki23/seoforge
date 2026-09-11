@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SEOForge — AI-Powered SEO Platform</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f1117;--card:#1a1d27;--card2:#22252f;--border:#2a2d3a;--cyan:#00d4ff;--green:#22c55e;--yellow:#eab308;--red:#ef4444;--purple:#a855f7;--text:#e4e4e7;--muted:#71717a;--accent:linear-gradient(135deg,#00d4ff,#7c3aed)}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+.header{background:var(--card);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.logo{font-size:16px;font-weight:700;background:var(--accent);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.badge{font-size:8px;background:var(--accent);color:#fff;padding:2px 6px;border-radius:8px;margin-left:4px}
+.nav{display:flex;gap:1px;overflow-x:auto}
+.nav-btn{background:none;border:none;color:var(--muted);padding:5px 8px;border-radius:5px;cursor:pointer;font-size:11px;transition:all .2s;white-space:nowrap}
+.nav-btn:hover,.nav-btn.active{color:var(--cyan);background:rgba(0,212,255,.08)}
+.container{max-width:1200px;margin:0 auto;padding:12px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px}
+.card h3{font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.input-group{display:flex;gap:6px;margin-bottom:8px}
+input[type=text],input[type=email],textarea,select{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:5px;font-size:12px;outline:none;font-family:inherit}
+input:focus,textarea:focus,select:focus{border-color:var(--cyan)}
+textarea{resize:vertical;min-height:50px}
+select{cursor:pointer;max-width:130px}
+.btn{background:var(--accent);color:#fff;border:none;padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;transition:opacity .2s;white-space:nowrap}
+.btn:hover{opacity:.85}
+.btn:disabled{opacity:.4}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:5px;font-size:11px;cursor:pointer}
+.btn-outline:hover{border-color:var(--cyan);color:var(--cyan)}
+.btn-sm{padding:4px 8px;font-size:10px;border-radius:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px}
+.score-ring{width:100px;height:100px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:32px;font-weight:800}
+.check-card{background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:8px}
+.check-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.check-name{font-weight:600;font-size:11px}
+.badge-s{font-size:8px;padding:2px 5px;border-radius:4px;font-weight:600;text-transform:uppercase}
+.badge-s.pass{background:rgba(34,197,94,.15);color:var(--green)}
+.badge-s.warning{background:rgba(234,179,8,.15);color:var(--yellow)}
+.badge-s.error{background:rgba(239,68,68,.15);color:var(--red)}
+.check-msg{font-size:10px;color:var(--muted)}
+.bar{height:3px;background:var(--border);border-radius:2px;margin-top:5px;overflow:hidden}
+.bar-fill{height:100%;border-radius:2px}
+.meta-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+.meta-pill{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:10px}
+.meta-pill .lbl{color:var(--muted);font-size:8px;text-transform:uppercase}
+.meta-pill .val{font-weight:700;font-size:13px}
+pre{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:10px;overflow:auto;max-height:250px;white-space:pre-wrap;font-family:'SF Mono',Consolas,monospace}
+.fix-card{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:8px;margin-bottom:5px}
+.fix-title{font-weight:600;font-size:11px;margin-bottom:2px}
+.fix-desc{font-size:10px;color:var(--muted)}
+.pri{font-size:7px;padding:1px 4px;border-radius:3px;font-weight:700;margin-left:3px}
+.pri.high{background:rgba(239,68,68,.15);color:var(--red)}
+.pri.medium{background:rgba(234,179,8,.15);color:var(--yellow)}
+.pri.low{background:rgba(34,197,94,.15);color:var(--green)}
+.kw-tag{display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:2px 7px;margin:1px;font-size:10px}
+.kw-tag.primary{border-color:var(--cyan);color:var(--cyan)}
+.kw-tag.secondary{border-color:var(--purple);color:var(--purple)}
+.kw-tag.longtail{border-color:var(--green);color:var(--green)}
+.da-card{text-align:center;padding:16px}
+.da-score{font-size:40px;font-weight:800;margin:6px 0}
+.da-signals{text-align:left;margin-top:10px;font-size:11px;line-height:1.7}
+.bulk-row{display:flex;align-items:center;gap:8px;padding:6px;border-bottom:1px solid var(--border);font-size:11px}
+.bulk-row .score-sm{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.hidden{display:none!important}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--cyan);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:100;display:none;align-items:center;justify-content:center;flex-direction:column;gap:8px}
+.loading .spinner{width:28px;height:28px;border-width:3px}
+.loading p{color:var(--cyan);font-size:12px}
+.section{display:none}.section.active{display:block}
+.tab-row{display:flex;gap:2px;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:3px;overflow-x:auto}
+.tab-btn{padding:4px 8px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:10px;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap}
+.tab-btn.active{color:var(--cyan);border-bottom-color:var(--cyan)}
+.preview-card{background:#fff;border-radius:6px;padding:10px;margin-bottom:6px;color:#202124}
+.preview-card .p-title{font-size:14px;color:#1a0dab}
+.preview-card .p-url{font-size:10px;color:#4d5156}
+.preview-card .p-desc{font-size:11px;color:#4d5156;line-height:1.2}
+.fb-preview{border:1px solid #ddd;border-radius:6px;overflow:hidden;margin-bottom:6px}
+.fb-preview .fb-body{padding:8px;background:#f0f2f5}
+.fb-preview .fb-url{font-size:9px;color:#65676b;text-transform:uppercase}
+.fb-preview .fb-title{font-size:12px;font-weight:600}
+.fb-preview .fb-desc{font-size:10px;color:#65676b}
+.tw-preview{border:1px solid #cfd9de;border-radius:8px;overflow:hidden;margin-bottom:6px;background:#fff}
+.tw-preview .tw-body{padding:8px;color:#0f1419}
+.tw-preview .tw-title{font-size:12px}
+.tw-preview .tw-desc{font-size:10px;color:#536471}
+.gsc-stat{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center}
+.gsc-stat .num{font-size:22px;font-weight:800;color:var(--cyan)}
+.gsc-stat .lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.query-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px}
+.query-row .q-text{flex:1;font-weight:500}
+.query-row .q-val{color:var(--muted);width:60px;text-align:right}
+.scan-item{display:flex;align-items:center;gap:8px;padding:6px;border-bottom:1px solid var(--border);font-size:11px}
+.cfg-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.cfg-row label{width:100px;font-size:11px;color:var(--muted);text-align:right}
+.cfg-row input{flex:1}
+.status-badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:600}
+.status-badge.ok{background:rgba(34,197,94,.15);color:var(--green)}
+.status-badge.off{background:rgba(239,68,68,.15);color:var(--red)}
+@media(max-width:768px){.two-col{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="loading" id="loading"><div class="spinner"></div><p id="loading-text">Working...</p></div>
+<header class="header">
+  <div><span class="logo">🔍 SEOForge</span><span class="badge">v2.0</span></div>
+  <nav class="nav">
+    <button class="nav-btn active" onclick="showPage('audit')">Audit</button>
+    <button class="nav-btn" onclick="showPage('keywords')">Keywords</button>
+    <button class="nav-btn" onclick="showPage('competitor')">Compare</button>
+    <button class="nav-btn" onclick="showPage('content')">Content</button>
+    <button class="nav-btn" onclick="showPage('gsc')">GSC</button>
+    <button class="nav-btn" onclick="showPage('email')">Email</button>
+    <button class="nav-btn" onclick="showPage('tools')">Tools</button>
+    <button class="nav-btn" onclick="showPage('bulk')">Bulk</button>
+    <button class="nav-btn" onclick="showPage('da')">Authority</button>
+    <button class="nav-btn" onclick="showPage('schedule')">Schedule</button>
+    <button class="nav-btn" onclick="showPage('history')">History</button>
+  </nav>
+</header>
+<div class="container">
+<!-- AUDIT -->
+<div id="page-audit" class="section active">
+  <div class="card"><h3>🔍 SEO Audit</h3><div class="input-group"><input type="text" id="audit-url" placeholder="https://example.com" onkeydown="if(event.key==='Enter')runAudit()"><button class="btn" onclick="runAudit()">Analyze</button></div></div>
+  <div id="audit-results" class="hidden">
+    <div class="card" id="score-card"></div>
+    <div class="tab-row" id="audit-tabs">
+      <button class="tab-btn active" onclick="showAuditTab('checks')">Checks</button>
+      <button class="tab-btn" onclick="showAuditTab('ai-fixes');loadAIFixes()">🤖 Fixes</button>
+      <button class="tab-btn" onclick="showAuditTab('speed')">Speed</button>
+      <button class="tab-btn" onclick="showAuditTab('social')">Social</button>
+      <button class="tab-btn" onclick="showAuditTab('report')">Report</button>
+    </div>
+    <div id="audit-checks" class="grid"></div>
+    <div id="audit-ai-fixes" class="hidden"></div>
+    <div id="audit-speed" class="hidden"></div>
+    <div id="audit-social" class="hidden"></div>
+    <div id="audit-report" class="hidden"></div>
+    <div style="margin-top:6px;display:flex;gap:6px">
+      <button class="btn-outline" onclick="downloadPDF()">📄 PDF Report</button>
+      <button class="btn-outline" onclick="sendEmailReport()">📧 Email Report</button>
+    </div>
+  </div>
+</div>
+<!-- KEYWORDS -->
+<div id="page-keywords" class="section"><div class="card"><h3>🔑 AI Keyword Research</h3><div class="input-group"><input type="text" id="kw-topic" placeholder="Topic or URL"><button class="btn" onclick="runKeywords()">Research</button></div></div><div id="kw-results" class="hidden"></div></div>
+<!-- COMPETITOR -->
+<div id="page-competitor" class="section"><div class="card"><h3>⚔️ Competitor Comparison</h3><div class="two-col"><input type="text" id="comp-url1" placeholder="Your site"><input type="text" id="comp-url2" placeholder="Competitor"></div><div style="margin-top:6px"><button class="btn" onclick="runCompetitor()">Compare</button></div></div><div id="comp-results" class="hidden"></div></div>
+<!-- CONTENT -->
+<div id="page-content" class="section"><div class="card"><h3>📝 Content Optimizer</h3><div class="input-group"><input type="text" id="content-url" placeholder="URL"><button class="btn" onclick="runContentOpt()">Optimize</button></div></div><div id="content-results" class="hidden"></div></div>
+
+<!-- GSC -->
+<div id="page-gsc" class="section">
+  <div class="card"><h3>📊 Google Search Console <span id="gsc-status" class="status-badge off">Not Connected</span></h3>
+    <div id="gsc-config-form">
+      <div class="cfg-row"><label>Client ID</label><input type="text" id="gsc-client-id" placeholder="Google OAuth Client ID"></div>
+      <div class="cfg-row"><label>Client Secret</label><input type="text" id="gsc-client-secret" placeholder="Google OAuth Client Secret"></div>
+      <div class="cfg-row"><label>Property URL</label><input type="text" id="gsc-property" placeholder="https://example.com/"></div>
+      <div style="margin-top:8px"><button class="btn" onclick="saveGSCConfig()">Save & Connect</button> <span id="gsc-connect-btn"></span></div>
+    </div>
+  </div>
+  <div id="gsc-dashboard" class="hidden">
+    <div id="gsc-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px"></div>
+    <div class="two-col">
+      <div class="card"><h3>🔑 Top Queries</h3><div id="gsc-queries"></div></div>
+      <div class="card"><h3>📄 Top Pages</h3><div id="gsc-pages"></div></div>
+    </div>
+    <div class="card"><h3>📈 Full Analytics</h3><div id="gsc-analytics"></div></div>
+  </div>
+</div>
+
+<!-- EMAIL -->
+<div id="page-email" class="section">
+  <div class="card"><h3>📧 Email Report Settings <span id="email-status" class="status-badge off">Not Configured</span></h3>
+    <div class="cfg-row"><label>SMTP Host</label><input type="text" id="em-host" placeholder="smtp.gmail.com"></div>
+    <div class="two-col"><div class="cfg-row"><label>Port</label><input type="text" id="em-port" value="587" placeholder="587"></div><div class="cfg-row"><label>From Email</label><input type="email" id="em-from" placeholder="you@gmail.com"></div></div>
+    <div class="cfg-row"><label>SMTP User</label><input type="text" id="em-user" placeholder="you@gmail.com"></div>
+    <div class="cfg-row"><label>SMTP Pass</label><input type="text" id="em-pass" placeholder="App password (not regular password)"></div>
+    <div class="cfg-row"><label>From Name</label><input type="text" id="em-name" value="SEOForge" placeholder="SEOForge"></div>
+    <div style="margin-top:8px"><button class="btn" onclick="saveEmailConfig()">Save Config</button> <button class="btn-outline" onclick="testEmail()">📧 Send Test</button></div>
+  </div>
+  <div class="card"><h3>📨 Send Report Now</h3>
+    <div class="input-group"><input type="email" id="report-to" placeholder="recipient@email.com"><button class="btn" onclick="sendReportNow()">Send Report</button></div>
+    <p style="font-size:10px;color:var(--muted)">Sends the last audit report with PDF attached</p>
+  </div>
+  <div class="card"><h3>📅 Scheduled Email Reports</h3>
+    <div class="input-group"><input type="email" id="sched-email-to" placeholder="recipient@email.com"><input type="text" id="sched-email-url" placeholder="URL to monitor"><select id="sched-email-int"><option value="daily">Daily</option><option value="weekly" selected>Weekly</option><option value="monthly">Monthly</option></select><button class="btn" onclick="addEmailSchedule()">Add</button></div>
+    <div id="email-sched-list"></div>
+  </div>
+</div>
+
+<!-- TOOLS -->
+<div id="page-tools" class="section">
+  <div class="card"><h3>🤖 Schema Generator</h3><div class="input-group"><input type="text" id="schema-url" placeholder="URL"><select id="schema-type"><option value="auto">Auto</option><option>Organization</option><option>LocalBusiness</option><option>Restaurant</option><option>Article</option><option>Product</option><option>FAQ</option><option>HowTo</option><option>Event</option></select><button class="btn" onclick="runSchemaGen()">Generate</button></div><pre id="schema-output">Schema appears here</pre></div>
+  <div class="card"><h3>📋 Robots.txt</h3><div class="input-group"><input type="text" id="robots-url" placeholder="URL"><select id="robots-type"><option value="general">General</option><option>ecommerce</option><option>blog</option></select><button class="btn" onclick="runRobotsGen()">Generate</button></div><pre id="robots-output"></pre></div>
+  <div class="card"><h3>🗺️ Sitemap</h3><div class="input-group"><input type="text" id="sitemap-url" placeholder="URL"><button class="btn" onclick="runSitemap()">Generate</button></div><pre id="sitemap-output"></pre></div>
+</div>
+<!-- BULK -->
+<div id="page-bulk" class="section"><div class="card"><h3>📊 Bulk Analyzer</h3><textarea id="bulk-urls" placeholder="URLs, one per line (max 10)"></textarea><div style="margin-top:6px"><button class="btn" onclick="runBulk()">Analyze All</button></div></div><div id="bulk-results" class="hidden"></div></div>
+<!-- DA -->
+<div id="page-da" class="section"><div class="card"><h3>🛡️ Domain Authority</h3><div class="input-group"><input type="text" id="da-url" placeholder="https://example.com"><button class="btn" onclick="runDA()">Check</button></div></div><div id="da-results" class="hidden"></div></div>
+<!-- SCHEDULE -->
+<div id="page-schedule" class="section"><div class="card"><h3>📅 Scheduled Scans</h3><div class="input-group"><input type="text" id="sched-url" placeholder="URL"><select id="sched-interval"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select><button class="btn" onclick="addSchedule()">Add</button></div><div id="sched-list"></div><button class="btn-outline" style="margin-top:6px" onclick="runScheduledNow()">▶ Run Now</button></div></div>
+<!-- HISTORY -->
+<div id="page-history" class="section"><div class="card"><h3>📋 Scan History</h3><button class="btn-outline" onclick="loadHistory()">Refresh</button><div id="history-list" style="margin-top:8px"></div></div></div>
+</div>
+
+<script>
+let cur={};
+function showPage(p){document.querySelectorAll('.section').forEach(s=>s.style.display='none');document.getElementById('page-'+p).style.display='block';document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));event.target.classList.add('active');if(p==='gsc')loadGSC();if(p==='email')loadEmailConfig();if(p==='schedule')loadSchedule();if(p==='history')loadHistory()}
+function showAuditTab(t){document.querySelectorAll('#audit-tabs .tab-btn').forEach(b=>b.classList.remove('active'));event.target.classList.add('active');['checks','ai-fixes','speed','social','report'].forEach(k=>{const el=document.getElementById('audit-'+k);if(el){el.style.display=k===t?'block':'none';if(k==='checks')el.className=k===t?'grid':'hidden'}})}
+function show(t){document.getElementById('loading-text').textContent=t||'Working...';document.getElementById('loading').style.display='flex'}
+function hide(){document.getElementById('loading').style.display='none'}
+function sc(p){return p>=80?'var(--green)':p>=50?'var(--yellow)':'var(--red)'}
+function bsc(s){return s==='pass'?'pass':s==='warning'?'warning':'error'}
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+async function f(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json()}
+async function fg(url){return fetch(url).then(r=>r.json())}
+
+// AUDIT
+async function runAudit(){const url=document.getElementById('audit-url').value.trim();if(!url)return;show('Analyzing...');try{cur.audit=await(f('/api/analyze',{url}));renderScore(cur.audit);renderChecks(cur.audit.checks);renderSpeed(cur.audit);renderSocial(cur.audit.meta);document.getElementById('audit-results').classList.remove('hidden')}catch(e){alert(e.message)}hide()}
+function renderScore(r){document.getElementById('score-card').innerHTML=`<div class="score-ring" style="border:3px solid ${sc(r.score)};color:${sc(r.score)}">${r.score}</div><div class="meta-row"><div class="meta-pill"><div class="lbl">Status</div><div class="val">${r.status_code}</div></div><div class="meta-pill"><div class="lbl">Speed</div><div class="val">${r.response_time_ms}ms</div></div><div class="meta-pill"><div class="lbl">Size</div><div class="val">${(r.content_length/1024).toFixed(1)}KB</div></div><div class="meta-pill"><div class="lbl">Words</div><div class="val">${r.meta?.word_count||'?'}</div></div><div class="meta-pill"><div class="lbl">✅</div><div class="val" style="color:var(--green)">${r.checks.filter(c=>c.status==='pass').length}</div></div><div class="meta-pill"><div class="lbl">⚠️</div><div class="val" style="color:var(--yellow)">${r.checks.filter(c=>c.status==='warning').length}</div></div><div class="meta-pill"><div class="lbl">❌</div><div class="val" style="color:var(--red)">${r.checks.filter(c=>c.status==='error').length}</div></div></div>`}
+function renderChecks(c){document.getElementById('audit-checks').innerHTML=c.map(x=>{const p=x.max?Math.round((x.score||0)/x.max*100):0;return`<div class="check-card"><div class="check-head"><span class="check-name">${x.name}</span><span class="badge-s ${bsc(x.status)}">${x.status}</span></div><div class="check-msg">${x.message}</div><div class="bar"><div class="bar-fill" style="width:${p}%;background:${sc(p)}"></div></div></div>`}).join('')}
+function renderSpeed(r){document.getElementById('audit-speed').innerHTML=`<div class="grid">${[{n:'Response',v:r.response_time_ms+'ms',s:r.response_time_ms<1000?'pass':'warning'},{n:'Size',v:(r.content_length/1024).toFixed(1)+'KB',s:r.content_length<200000?'pass':'warning'},{n:'Words',v:r.meta?.word_count||'0',s:(r.meta?.word_count||0)>300?'pass':'warning'},{n:'Images',v:r.meta?.total_images||'0',s:'pass'},{n:'No Alt',v:r.meta?.images_no_alt||'0',s:(r.meta?.images_no_alt||0)===0?'pass':'warning'},{n:'Links',v:r.meta?.total_links||'0',s:'pass'}].map(m=>`<div class="check-card"><div class="check-head"><span class="check-name">${m.n}</span><span class="badge-s ${bsc(m.s)}">${m.s}</span></div><div class="check-msg" style="font-size:14px;font-weight:700">${m.v}</div></div>`).join('')}</div>`}
+function renderSocial(m){const og=m?.og||{},tw=m?.twitter||{};document.getElementById('audit-social').innerHTML=`<div class="card"><h3>🔍 Google</h3><div class="preview-card"><div class="p-title">${m?.title||'N/A'}</div><div class="p-url">${m?.canonical||''}</div><div class="p-desc">${m?.description||'N/A'}</div></div></div><div class="card"><h3>📘 Facebook</h3><div class="fb-preview"><div class="fb-body"><div class="fb-url">${og['og:url']||''}</div><div class="fb-title">${og['og:title']||m?.title||''}</div><div class="fb-desc">${og['og:description']||m?.description||''}</div></div></div></div><div class="card"><h3>🐦 Twitter</h3><div class="tw-preview"><div class="tw-body"><div class="tw-title">${tw['twitter:title']||m?.title||''}</div><div class="tw-desc">${tw['twitter:description']||m?.description||''}</div></div></div></div>`}
+async function loadAIFixes(){if(cur.fixes)return;show('🤖 Generating fixes...');try{cur.fixes=await(f('/api/ai-fixes',{url:cur.audit.url,results:cur.audit}));let h=`<div style="margin-bottom:8px"><div class="card" style="margin-bottom:4px"><b>Title:</b> ${cur.fixes.optimized_title||'(same)'}</div><div class="card"><b>Desc:</b> ${cur.fixes.optimized_description||'(same)'}</div></div>`;if(cur.fixes.keywords)h+=`<div style="margin-bottom:8px"><b>Keywords:</b> ${cur.fixes.keywords.map(k=>'<span class="kw-tag primary">'+k+'</span>').join(' ')}</div>`;if(cur.fixes.fixes)h+=cur.fixes.fixes.map(x=>`<div class="fix-card"><div class="fix-title">${x.title} <span class="pri ${x.priority}">${x.priority}</span></div><div class="fix-desc">${x.description}</div>${x.code_fix?'<pre style="margin-top:3px">'+esc(x.code_fix)+'</pre>':''}</div>`).join('');document.getElementById('audit-ai-fixes').innerHTML=h;document.getElementById('audit-report').innerHTML=`<p style="color:var(--muted);line-height:1.7;font-size:12px">${cur.fixes.seo_report||''}</p>`}catch(e){document.getElementById('audit-ai-fixes').innerHTML='<p style="color:var(--red)">'+e.message+'</p>'}hide()}
+async function downloadPDF(){show('📄 Generating PDF...');try{const res=await fetch('/api/pdf-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...cur.audit,fixes:cur.fixes||null})});const b=await res.blob();const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='seo-report.pdf';a.click()}catch(e){alert(e.message)}hide()}
+
+// EMAIL
+async function sendEmailReport(){const to=prompt('Send report to email:');if(!to||!cur.audit)return;show('📧 Sending email...');try{const r=await(f('/api/email/send-report',{to,results:cur.audit,fixes:cur.fixes||null}));alert(r.ok?'✅ Sent!':'❌ '+r.error)}catch(e){alert(e.message)}hide()}
+async function sendReportNow(){const to=document.getElementById('report-to').value.trim();if(!to)return alert('Enter email');if(!cur.audit)return alert('Run an audit first');show('📧 Sending...');try{const r=await(f('/api/email/send-report',{to,results:cur.audit,fixes:cur.fixes||null}));alert(r.ok?'✅ Sent to '+to:'❌ '+r.error)}catch(e){alert(e.message)}hide()}
+
+// GSC
+async function loadGSC(){try{const c=await fg('/api/gsc/config');const el=document.getElementById('gsc-status');if(c.has_token){el.className='status-badge ok';el.textContent='Connected';document.getElementById('gsc-dashboard').classList.remove('hidden');loadGSCSummary()}else{el.className='status-badge off';el.textContent='Not Connected'}}catch(e){}}
+async function saveGSCConfig(){show('Saving config...');try{const r=await(f('/api/gsc/config',{client_id:document.getElementById('gsc-client-id').value,client_secret:document.getElementById('gsc-client-secret').value,property_url:document.getElementById('gsc-property').value}));if(r.auth_url){document.getElementById('gsc-connect-btn').innerHTML=`<a href="${r.auth_url}" target="_blank" class="btn">🔗 Authorize with Google</a>`}alert('Config saved! Click Authorize to connect.')}catch(e){alert(e.message)}hide()}
+async function loadGSCSummary(){show('Loading GSC data...');try{const r=await(f('/api/gsc/summary',{}));const a=r.analytics||{};if(!a.error){document.getElementById('gsc-stats').innerHTML=`
+  <div class="gsc-stat"><div class="num">${a.total_clicks||0}</div><div class="lbl">Clicks (28d)</div></div>
+  <div class="gsc-stat"><div class="num">${a.total_impressions||0}</div><div class="lbl">Impressions (28d)</div></div>
+  <div class="gsc-stat"><div class="num">${a.avg_ctr||0}%</div><div class="lbl">Avg CTR</div></div>
+  <div class="gsc-stat"><div class="num">#${a.avg_position||'?'}</div><div class="lbl">Avg Position</div></div>`;
+  if(a.top_queries){document.getElementById('gsc-queries').innerHTML=a.top_queries.map(q=>`<div class="query-row"><span class="q-text">${q.query}</span><span class="q-val">${q.clicks} clicks</span><span class="q-val">#${q.position}</span></div>`).join('')}
+  }else{document.getElementById('gsc-stats').innerHTML=`<p style="color:var(--muted);grid-column:1/-1">${a.error}</p>`}}catch(e){alert(e.message)}hide()}
+
+// EMAIL CONFIG
+async function loadEmailConfig(){try{const c=await fg('/api/email/config');document.getElementById('email-status').className=c.has_pass?'status-badge ok':'status-badge off';document.getElementById('email-status').textContent=c.has_pass?'Configured':'Not Configured';if(c.smtp_host)document.getElementById('em-host').value=c.smtp_host;if(c.smtp_port)document.getElementById('em-port').value=c.smtp_port;if(c.from_email)document.getElementById('em-from').value=c.from_email;if(c.smtp_user)document.getElementById('em-user').value=c.smtp_user;if(c.from_name)document.getElementById('em-name').value=c.from_name}catch(e){}}
+async function saveEmailConfig(){show('Saving...');try{await(f('/api/email/config',{smtp_host:document.getElementById('em-host').value,smtp_port:document.getElementById('em-port').value,from_email:document.getElementById('em-from').value,smtp_user:document.getElementById('em-user').value,smtp_pass:document.getElementById('em-pass').value,from_name:document.getElementById('em-name').value}));alert('✅ Config saved!');loadEmailConfig()}catch(e){alert(e.message)}hide()}
+async function testEmail(){show('📧 Sending test...');try{const r=await(f('/api/email/config',{test:true,smtp_host:document.getElementById('em-host').value,smtp_port:document.getElementById('em-port').value,from_email:document.getElementById('em-from').value,smtp_user:document.getElementById('em-user').value,smtp_pass:document.getElementById('em-pass').value,from_name:document.getElementById('em-name').value}));alert(r.ok?'✅ Test email sent!':'❌ '+r.error);loadEmailConfig()}catch(e){alert(e.message)}hide()}
+async function addEmailSchedule(){show('Adding...');try{await(f('/api/email/schedule',{to:document.getElementById('sched-email-to').value,url:document.getElementById('sched-email-url').value,interval:document.getElementById('sched-email-int').value}));alert('✅ Added!');loadEmailSchedules()}catch(e){alert(e.message)}hide()}
+
+// TOOLS
+async function runSchemaGen(){const url=document.getElementById('schema-url').value.trim(),type=document.getElementById('schema-type').value;if(!url)return;show('Generating...');try{const r=await(f('/api/schema-generate',{url,type}));document.getElementById('schema-output').textContent=r.schema_jsonld||r.raw||JSON.stringify(r,null,2)}catch(e){document.getElementById('schema-output').textContent=e.message}hide()}
+async function runRobotsGen(){const url=document.getElementById('robots-url').value.trim(),type=document.getElementById('robots-type').value;if(!url)return;show('Generating...');try{const r=await(f('/api/robots-generate',{url,type}));document.getElementById('robots-output').textContent=r.robots_txt||''}catch(e){document.getElementById('robots-output').textContent=e.message}hide()}
+async function runSitemap(){const url=document.getElementById('sitemap-url').value.trim();if(!url)return;show('Generating...');try{const res=await fetch('/api/sitemap',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});document.getElementById('sitemap-output').textContent=await res.text()}catch(e){document.getElementById('sitemap-output').textContent=e.message}hide()}
+async function runBulk(){const urls=document.getElementById('bulk-urls').value.trim().split('\n').filter(u=>u.trim());if(!urls.length)return;show(`Analyzing ${urls.length}...`);try{const r=await(f('/api/bulk',{urls}));let h=`<div class="card"><h3>📊 Results</h3>`;r.results.sort((a,b)=>b.score-a.score).forEach(s=>{h+=`<div class="bulk-row"><div class="score-sm" style="border:2px solid ${sc(s.score)};color:${sc(s.score)}">${s.score}</div><div style="flex:1"><b>${s.url}</b><div style="font-size:9px;color:var(--muted)">${s.status_code} • ${s.response_time_ms}ms</div></div></div>`});document.getElementById('bulk-results').innerHTML=h+'</div>';document.getElementById('bulk-results').classList.remove('hidden')}catch(e){alert(e.message)}hide()}
+async function runDA(){const url=document.getElementById('da-url').value.trim();if(!url)return;show('Checking...');try{const r=await(f('/api/domain-authority',{url}));const s=r.analysis?.score||0;document.getElementById('da-results').innerHTML=`<div class="card da-card"><div class="da-score" style="color:${sc(s)}">${s}</div><div style="font-size:12px;color:var(--muted)">${r.analysis?.verdict||''} — ${r.domain}</div><div class="da-signals">${(r.analysis?.signals||[]).map(x=>`<div style="color:${x.startsWith('✓')?'var(--green)':'var(--red)'}">${x}</div>`).join('')}</div></div>`;document.getElementById('da-results').classList.remove('hidden')}catch(e){alert(e.message)}hide()}
+async function addSchedule(){const url=document.getElementById('sched-url').value.trim(),interval=document.getElementById('sched-interval').value;if(!url)return;await(f('/api/schedule/add',{url,interval}));loadSchedule()}
+async function loadSchedule(){try{const r=await(fg('/api/schedule/list'));document.getElementById('sched-list').innerHTML=(r.scans||[]).map(s=>`<div class="bulk-row"><div style="flex:1"><b>${s.url}</b><br><span style="font-size:9px;color:var(--muted)">${s.interval}</span></div></div>`).join('')||'<p style="color:var(--muted);font-size:11px">No scans scheduled</p>'}catch(e){}}
+async function runScheduledNow(){const url=prompt('URL to scan:');if(!url)return;show('Scanning...');try{await(f('/api/schedule/run',{url}));loadHistory();alert('✅ Scan saved!')}catch(e){alert(e.message)}hide()}
+async function loadHistory(){try{const r=await fg('/api/scan-history');document.getElementById('history-list').innerHTML=(r.scans||[]).map(s=>`<div class="scan-item"><div class="score-sm" style="border:2px solid ${sc(s.score)};color:${sc(s.score)}">${s.score}</div><div><b>${s.url}</b><br><span style="font-size:9px;color:var(--muted)">${s.timestamp}</span></div></div>`).join('')||'<p style="color:var(--muted)">No history</p>'}catch(e){}}
+</script>
+</body>
+</html>
