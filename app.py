@@ -13,11 +13,12 @@ from reportlab.lib.units import inch
 
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
-PORT = int(os.environ.get("SEOFORGE_PORT", 8888))
+PORT = int(os.environ.get("SEOFORGE_PORT", os.environ.get("PORT", 8888)))
 HOST = "0.0.0.0"
-SCANS_DIR = Path("/root/Documents/Codex/seoforge/scans")
-SCANS_DIR.mkdir(exist_ok=True)
-SCHEDULE_FILE = Path("/root/Documents/Codex/seoforge/schedule.json")
+BASE_DIR = Path(__file__).resolve().parent
+SCANS_DIR = Path(os.environ.get("SEOFORGE_DATA_DIR", BASE_DIR / "data")) / "scans"
+SCANS_DIR.mkdir(parents=True, exist_ok=True)
+SCHEDULE_FILE = Path(os.environ.get("SEOFORGE_DATA_DIR", BASE_DIR / "data")) / "schedule.json"
 
 # ============================================================
 # AI
@@ -47,7 +48,7 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 
 async def fetch_url(url, session):
     try:
-        async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=15), ssl=False, allow_redirects=True) as resp:
+        async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=15), allow_redirects=True) as resp:
             return resp.status, await resp.text(), dict(resp.headers), str(resp.url)
     except Exception as e:
         return 0, str(e), {}, url
@@ -293,7 +294,7 @@ def save_schedule(data):
 
 async def run_scheduled_scan(url):
     start = time.time()
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(trust_env=True) as session:
         status, html, headers, final_url = await fetch_url(url, session)
     elapsed = time.time() - start
     results = analyze_seo(url, status, html, headers, elapsed, final_url)
@@ -317,7 +318,7 @@ async def handle_analyze(request):
     if not url: return web.json_response({"error":"URL required"})
     if not url.startswith("http"): url = "https://"+url
     start = time.time()
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(trust_env=True) as session:
         status, html, headers, final_url = await fetch_url(url, session)
     elapsed = time.time()-start
     return web.json_response(analyze_seo(url, status, html, headers, elapsed, final_url))
@@ -340,7 +341,7 @@ async def handle_competitor(request):
     if not u1.startswith("http"): u1 = "https://"+u1
     if not u2.startswith("http"): u2 = "https://"+u2
     results = {}
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(trust_env=True) as session:
         for label, u in [("site1",u1),("site2",u2)]:
             start = time.time()
             status, html, headers, final_url = await fetch_url(u, session)
@@ -368,7 +369,7 @@ async def handle_schema_generate(request):
 
 async def handle_bulk_analyze(request):
     data = await request.json(); urls = data.get("urls",[]); results = []
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(trust_env=True) as session:
         for u in urls[:10]:
             u = u.strip()
             if not u.startswith("http"): u = "https://"+u
@@ -382,7 +383,7 @@ async def handle_page_speed(request):
     data = await request.json(); url = data.get("url","").strip()
     if not url.startswith("http"): url = "https://"+url
     start = time.time()
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(trust_env=True) as session:
         status, html, headers, final_url = await fetch_url(url, session)
     elapsed = time.time()-start
     soup = BeautifulSoup(html,"lxml") if status==200 and html else None
@@ -419,7 +420,7 @@ async def handle_pdf_report(request):
 async def handle_domain_authority(request):
     data = await request.json(); url = data.get("url","").strip()
     if not url.startswith("http"): url = "https://"+url
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(trust_env=True) as session:
         result = await check_domain_authority(url, session)
     return web.json_response(result)
 
