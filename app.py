@@ -396,6 +396,51 @@ async def scheduler_loop():
                         print(f"scheduled scan failed for {entry.get('url')}: {e}")
             if changed:
                 save_schedule(sched)
+
+            # Scheduled report emails (entries from /api/email/schedule)
+            email_cfg_now = email_cfg()
+            if not email_cfg_now.get("enabled") or not email_cfg_now.get("smtp_host"):
+                pass  # SMTP not configured — skip silently until it is
+            else:
+                try:
+                    email_sched = json.loads(EMAIL_SCHEDULE_FILE.read_text()) if EMAIL_SCHEDULE_FILE.exists() else {"emails": []}
+                except Exception as e:
+                    print(f"scheduler: skipping unreadable email schedule: {e}")
+                    email_sched = {"emails": []}
+                email_changed = False
+                for entry in email_sched.get("emails", []):
+                    if not entry.get("enabled", True) or not entry.get("to") or not entry.get("url"):
+                        continue
+                    interval = INTERVAL_SECONDS.get(entry.get("interval", "weekly"), 604800)
+                    last_sent = entry.get("last_sent")
+                    due = True
+                    if last_sent:
+                        try:
+                            due = (now - datetime.fromisoformat(last_sent)).total_seconds() >= interval
+                        except Exception:
+                            due = True
+                    if not due:
+                        continue
+                    try:
+                        results = await run_scheduled_scan(entry["url"])
+                        if results is None:
+                            continue
+                        html = build_report_html(results, None)
+                        pdf_bytes = generate_pdf_report(results, None)
+                        loop = asyncio.get_running_loop()
+                        res = await loop.run_in_executor(
+                            None, send_email, entry["to"],
+                            f"🔍 SEO Report: {results.get('url','')} — Score {results.get('score',0)}/100",
+                            html, pdf_bytes, safe_report_filename(results.get("url","")))
+                        if res.get("ok"):
+                            entry["last_sent"] = now.isoformat()
+                            email_changed = True
+                        else:
+                            print(f"scheduler: email failed for {entry.get('to')}: {res.get('error')}")
+                    except Exception as e:
+                        print(f"scheduler: scheduled email failed for {entry.get('to')}: {e}")
+                if email_changed:
+                    EMAIL_SCHEDULE_FILE.write_text(json.dumps(email_sched, indent=2))
         except Exception as e:
             print(f"scheduler error: {e}")
         await asyncio.sleep(300)
