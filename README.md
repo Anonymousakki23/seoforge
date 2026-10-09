@@ -22,7 +22,7 @@ A full-featured SEO audit, optimization, and monitoring platform with AI-powered
 
 ```bash
 pip install -r requirements.txt
-export GEMINI_API_KEY="your-gemini-api-key"
+export OMNIROUTE_URL="http://localhost:20128/v1"   # local OmniRoute gateway (free routes)
 python app.py
 ```
 
@@ -30,8 +30,8 @@ Open http://localhost:8888 in your browser.
 
 ## Configuration
 
-### AI (Gemini)
-Set the `GEMINI_API_KEY` environment variable with your Google Generative AI API key.
+### AI (OmniRoute, free)
+Set the `OMNIROUTE_URL` environment variable to your local OmniRoute gateway (e.g. `http://localhost:20128/v1`). Optional: `OMNIROUTE_MODEL` (default `auto`), `OMNIROUTE_API_KEY` if your gateway requires one. There is no paid-key fallback by design — if the gateway is unreachable, AI features return an error instead of billing anything.
 
 ### Email Reports
 In the **Email** tab, configure your SMTP server:
@@ -48,5 +48,5 @@ In the **Email** tab, configure your SMTP server:
 
 - **Backend:** Python 3.12+, aiohttp, BeautifulSoup4, ReportLab
 - **Frontend:** Vanilla HTML/CSS/JS (single-file SPA)
-- **AI:** Google Gemini (Generative Language API)
+- **AI:** OmniRoute gateway (free routes, OpenAI-compatible)
 - **External APIs:** Google Search Console (OAuth2)

@@ -11,8 +11,14 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 from reportlab.lib.units import inch
 
-GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
+# All AI calls route through a local OmniRoute gateway (free providers,
+# zero paid API usage). Example: OMNIROUTE_URL=http://localhost:20128/v1
+# OMNIROUTE_MODEL defaults to "auto" (OmniRoute picks a free route).
+# There is intentionally no fallback to a paid key: if the gateway is
+# unreachable, AI features return an error instead of billing anything.
+OMNIROUTE_URL = os.environ.get("OMNIROUTE_URL", "").rstrip("/")
+OMNIROUTE_MODEL = os.environ.get("OMNIROUTE_MODEL", "auto")
+OMNIROUTE_KEY = os.environ.get("OMNIROUTE_API_KEY", "")
 PORT = int(os.environ.get("SEOFORGE_PORT", os.environ.get("PORT", 8888)))
 HOST = "0.0.0.0"
 BASE_DIR = Path(__file__).resolve().parent
@@ -24,12 +30,22 @@ SCHEDULE_FILE = Path(os.environ.get("SEOFORGE_DATA_DIR", BASE_DIR / "data")) / "
 # AI
 # ============================================================
 async def ask_gemini(prompt, temperature=0.3, max_tokens=2048):
-    payload = {"contents":[{"role":"user","parts":[{"text":prompt}]}],"generationConfig":{"temperature":temperature,"maxOutputTokens":max_tokens}}
-    req = urllib.request.Request(GEMINI_URL+"?key="+GEMINI_KEY, data=json.dumps(payload).encode(), headers={"Content-Type":"application/json"}, method="POST")
+    if not OMNIROUTE_URL:
+        return "Error: OMNIROUTE_URL is not set. Start the OmniRoute gateway and set OMNIROUTE_URL (e.g. http://localhost:20128/v1). No paid API fallback is configured by design."
+    # OmniRoute gateway: OpenAI-compatible API, free providers, no paid usage.
+    payload = {"model": OMNIROUTE_MODEL,
+               "messages": [{"role": "user", "content": prompt}],
+               "temperature": temperature, "max_tokens": max_tokens}
+    headers = {"Content-Type": "application/json"}
+    if OMNIROUTE_KEY:
+        headers["Authorization"] = "Bearer " + OMNIROUTE_KEY
+    req = urllib.request.Request(OMNIROUTE_URL + "/chat/completions",
+                                data=json.dumps(payload).encode(),
+                                headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=120) as resp:
             data = json.loads(resp.read())
-        return data["candidates"][0]["content"]["parts"][0]["text"]
+        return data["choices"][0]["message"]["content"]
     except Exception as e:
         return f"Error: {e}"
 
@@ -607,7 +623,7 @@ def main():
     app.router.add_post("/api/gsc/analytics", handle_gsc_analytics)
     app.router.add_post("/api/gsc/inspect", handle_gsc_inspect)
     app.router.add_get("/api/gsc/sitemaps", handle_gsc_sitemaps)
-    print(f"\n{'='*60}\n  🔍 SEOForge v2.0 — Full SEO Platform\n  http://{HOST}:{PORT}\n  Gemini: {'✓' if GEMINI_KEY else '✗'}\n  PDF: ✓ | Scheduled: ✓ | Domain Auth: ✓\n  {len(app.router.routes())} routes\n{'='*60}\n")
+    print(f"\n{'='*60}\n  🔍 SEOForge v2.0 — Full SEO Platform\n  http://{HOST}:{PORT}\n  AI: {'OmniRoute ('+OMNIROUTE_MODEL+')' if OMNIROUTE_URL else 'OmniRoute ✗ (OMNIROUTE_URL not set)'}\n  PDF: ✓ | Scheduled: ✓ | Domain Auth: ✓\n  {len(app.router.routes())} routes\n{'='*60}\n")
     web.run_app(app, host=HOST, port=PORT, print=None)
 
 if __name__ == "__main__":
