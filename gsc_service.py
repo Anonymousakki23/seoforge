@@ -1,19 +1,23 @@
 """Google Search Console Integration — OAuth2 + Analytics API."""
 import json
+import os
 import urllib.request
 import urllib.parse
 from pathlib import Path
 from datetime import datetime, timedelta
 
-CONFIG_FILE = Path("/root/Documents/Codex/seoforge/gsc_config.json")
-TOKEN_FILE = Path("/root/Documents/Codex/seoforge/gsc_token.json")
+DATA_DIR = Path(os.environ.get("SEOFORGE_DATA_DIR", Path(__file__).resolve().parent / "data"))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+CONFIG_FILE = DATA_DIR / "gsc_config.json"
+TOKEN_FILE = DATA_DIR / "gsc_token.json"
 
 # Google OAuth2 URLs
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 GSC_API = "https://www.googleapis.com/webmasters/v3"
-GSC_SEARCH_API = "https://searchconsole.googleapis.com/webmasters/v3"
+
+DEFAULT_REDIRECT_URI = "http://localhost:8888/api/gsc/callback"
 
 def load_config():
     if CONFIG_FILE.exists():
@@ -37,7 +41,7 @@ def get_auth_url():
         return None
     params = {
         "client_id": cfg["client_id"],
-        "redirect_uri": cfg.get("redirect_uri", "http://localhost:8888/gsc-callback"),
+        "redirect_uri": cfg.get("redirect_uri", DEFAULT_REDIRECT_URI),
         "response_type": "code",
         "scope": " ".join(SCOPES),
         "access_type": "offline",
@@ -51,7 +55,7 @@ async def exchange_code(code):
         "code": code,
         "client_id": cfg["client_id"],
         "client_secret": cfg["client_secret"],
-        "redirect_uri": cfg.get("redirect_uri", "http://localhost:8888/gsc-callback"),
+        "redirect_uri": cfg.get("redirect_uri", DEFAULT_REDIRECT_URI),
         "grant_type": "authorization_code"
     }).encode()
     req = urllib.request.Request(TOKEN_URL, data=data, method="POST")
@@ -83,8 +87,9 @@ async def refresh_token():
         new_token["created_at"] = datetime.now().isoformat()
         save_token(new_token)
         return new_token
-    except:
-        return token
+    except Exception as e:
+        print(f"gsc refresh_token failed: {e}")
+        return None
 
 async def gsc_api_call(endpoint, params=None):
     cfg = load_config()

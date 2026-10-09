@@ -3,3 +3,15 @@ services:
     name: seoforge
     runtime: docker
     plan: free
+    envVars:
+      - key: OMNIROUTE_URL
+        sync: false
+      - key: OMNIROUTE_MODEL
+        value: auto
+      - key: OMNIROUTE_API_KEY
+        sync: false
+      # Optional: override the data dir (scans, configs, schedules).
+      # Note: Render's free tier has an ephemeral filesystem — files in
+      # the data dir are lost on each redeploy/restart.
+      - key: SEOFORGE_DATA_DIR
+        value: /app/data

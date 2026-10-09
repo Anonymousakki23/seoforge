@@ -2,6 +2,7 @@
 import smtplib
 import ssl
 import json
+import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -9,7 +10,9 @@ from email import encoders
 from pathlib import Path
 from datetime import datetime
 
-CONFIG_FILE = Path("/root/Documents/Codex/seoforge/email_config.json")
+DATA_DIR = Path(os.environ.get("SEOFORGE_DATA_DIR", Path(__file__).resolve().parent / "data"))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+CONFIG_FILE = DATA_DIR / "email_config.json"
 
 def load_config():
     if CONFIG_FILE.exists():

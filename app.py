@@ -1,8 +1,9 @@
-import aiohttp, asyncio, json, os, re, sys, time, urllib.request
-from html import unescape
+import aiohttp, asyncio, json, os, re, socket, time, urllib.parse
+from html import escape, unescape
 from collections import Counter
 from pathlib import Path
 from datetime import datetime
+from ipaddress import ip_address
 from bs4 import BeautifulSoup
 from io import BytesIO
 from reportlab.lib.pagesizes import A4
@@ -22,39 +23,79 @@ OMNIROUTE_KEY = os.environ.get("OMNIROUTE_API_KEY", "")
 PORT = int(os.environ.get("SEOFORGE_PORT", os.environ.get("PORT", 8888)))
 HOST = "0.0.0.0"
 BASE_DIR = Path(__file__).resolve().parent
-SCANS_DIR = Path(os.environ.get("SEOFORGE_DATA_DIR", BASE_DIR / "data")) / "scans"
+DATA_DIR = Path(os.environ.get("SEOFORGE_DATA_DIR", BASE_DIR / "data"))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+SCANS_DIR = DATA_DIR / "scans"
 SCANS_DIR.mkdir(parents=True, exist_ok=True)
-SCHEDULE_FILE = Path(os.environ.get("SEOFORGE_DATA_DIR", BASE_DIR / "data")) / "schedule.json"
+SCHEDULE_FILE = DATA_DIR / "schedule.json"
+EMAIL_SCHEDULE_FILE = DATA_DIR / "email_schedule.json"
+STATIC_DIR = (BASE_DIR / "static").resolve()
+
+# ============================================================
+# SECURITY / REQUEST HELPERS
+# ============================================================
+def host_is_public(url):
+    """Reject URLs that resolve to non-public IPs (SSRF guard)."""
+    try:
+        host = urllib.parse.urlparse(url).hostname
+        if not host:
+            return False
+        for _fam, _typ, _proto, _cname, sockaddr in socket.getaddrinfo(host, None):
+            if not ip_address(sockaddr[0]).is_global:
+                return False
+        return True
+    except Exception:
+        return False
+
+SSRF_ERROR = {"error": "URL resolves to a private/internal address and is blocked"}
+
+async def get_json(request):
+    """Parse JSON body; returns (data, None) or (None, error_response)."""
+    try:
+        return await request.json(), None
+    except Exception:
+        return None, web.json_response({"error": "Invalid JSON body"}, status=400)
+
+def slugify(text, maxlen=80):
+    return re.sub(r"[^a-zA-Z0-9.-]+", "_", text or "").strip("_")[:maxlen] or "scan"
+
+def safe_report_filename(url, prefix="seo-report", maxlen=40):
+    host = urllib.parse.urlparse(url).hostname or "report"
+    slug = re.sub(r"[^a-zA-Z0-9.-]+", "-", host).strip("-.")[:maxlen] or "report"
+    return f"{prefix}-{slug}.pdf"
 
 # ============================================================
 # AI
 # ============================================================
-async def ask_gemini(prompt, temperature=0.3, max_tokens=2048):
+async def ask_ai(prompt, temperature=0.3, max_tokens=2048):
     if not OMNIROUTE_URL:
         return "Error: OMNIROUTE_URL is not set. Start the OmniRoute gateway and set OMNIROUTE_URL (e.g. http://localhost:20128/v1). No paid API fallback is configured by design."
     # OmniRoute gateway: OpenAI-compatible API, free providers, no paid usage.
+    # Uses aiohttp so long AI calls never stall the event loop.
     payload = {"model": OMNIROUTE_MODEL,
                "messages": [{"role": "user", "content": prompt}],
                "temperature": temperature, "max_tokens": max_tokens}
     headers = {"Content-Type": "application/json"}
     if OMNIROUTE_KEY:
         headers["Authorization"] = "Bearer " + OMNIROUTE_KEY
-    req = urllib.request.Request(OMNIROUTE_URL + "/chat/completions",
-                                data=json.dumps(payload).encode(),
-                                headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            data = json.loads(resp.read())
+        async with aiohttp.ClientSession(trust_env=True) as session:
+            async with session.post(OMNIROUTE_URL + "/chat/completions", json=payload,
+                                   headers=headers, timeout=aiohttp.ClientTimeout(total=120)) as resp:
+                data = await resp.json()
         return data["choices"][0]["message"]["content"]
     except Exception as e:
         return f"Error: {e}"
 
 async def ai_json(prompt):
-    reply = await ask_gemini(prompt, 0.3, 2048)
-    match = re.search(r'```json\s*([\s\S]*?)```', reply)
-    if match: return json.loads(match.group(1))
-    match = re.search(r'\{[\s\S]*\}', reply)
-    if match: return json.loads(match.group())
+    reply = await ask_ai(prompt, 0.3, 2048)
+    for pattern in (r'```json\s*([\s\S]*?)```', r'\{[\s\S]*\}'):
+        match = re.search(pattern, reply)
+        if match:
+            try:
+                return json.loads(match.group(1 if match.groups() else 0))
+            except Exception:
+                continue
     return {"raw": reply}
 
 # ============================================================
@@ -81,6 +122,8 @@ def analyze_seo(url, status, html, headers, elapsed, final_url=""):
     title = soup.find("title"); r["meta"]["title"] = title.get_text(strip=True) if title else ""
     md = soup.find("meta", attrs={"name":re.compile("description",re.I)}); r["meta"]["description"] = md.get("content","") if md else ""
     r["meta"]["canonical"] = (soup.find("link",rel="canonical") or {}).get("href","")
+    vp = soup.find("meta", attrs={"name": "viewport"})
+    r["meta"]["viewport"] = vp.get("content","") if vp else ""
     html_tag = soup.find("html"); r["meta"]["lang"] = html_tag.get("lang","") if html_tag else ""
     og_tags = {t.get("property",""):t.get("content","") for t in soup.find_all("meta",property=re.compile("^og:"))}
     r["meta"]["og"] = og_tags
@@ -309,6 +352,10 @@ def save_schedule(data):
     SCHEDULE_FILE.write_text(json.dumps(data, indent=2))
 
 async def run_scheduled_scan(url):
+    if not url.startswith("http"): url = "https://" + url
+    if not host_is_public(url):
+        print(f"scheduled scan skipped (blocked host): {url}")
+        return None
     start = time.time()
     async with aiohttp.ClientSession(trust_env=True) as session:
         status, html, headers, final_url = await fetch_url(url, session)
@@ -316,9 +363,42 @@ async def run_scheduled_scan(url):
     results = analyze_seo(url, status, html, headers, elapsed, final_url)
     # Save scan
     scan_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    scan_file = SCANS_DIR / f"{url.split('//')[-1].replace('/', '_')}_{scan_id}.json"
+    scan_file = SCANS_DIR / f"{slugify(urllib.parse.urlparse(url).hostname)}_{scan_id}.json"
     scan_file.write_text(json.dumps(results, indent=2))
     return results
+
+INTERVAL_SECONDS = {"daily": 86400, "weekly": 604800, "monthly": 2592000}
+
+async def scheduler_loop():
+    """Background loop: run due scheduled scans every 5 minutes."""
+    while True:
+        try:
+            sched = load_schedule()
+            now = datetime.now()
+            changed = False
+            for entry in sched.get("scans", []):
+                if not entry.get("enabled", True) or not entry.get("url"):
+                    continue
+                interval = INTERVAL_SECONDS.get(entry.get("interval", "daily"), 86400)
+                last_run = entry.get("last_run")
+                due = True
+                if last_run:
+                    try:
+                        due = (now - datetime.fromisoformat(last_run)).total_seconds() >= interval
+                    except Exception:
+                        due = True
+                if due:
+                    try:
+                        if await run_scheduled_scan(entry["url"]) is not None:
+                            entry["last_run"] = now.isoformat()
+                            changed = True
+                    except Exception as e:
+                        print(f"scheduled scan failed for {entry.get('url')}: {e}")
+            if changed:
+                save_schedule(sched)
+        except Exception as e:
+            print(f"scheduler error: {e}")
+        await asyncio.sleep(300)
 
 # ============================================================
 # HANDLERS
@@ -326,13 +406,15 @@ async def run_scheduled_scan(url):
 from aiohttp import web
 
 async def handle_index(request):
-    return web.Response(text=Path("static/index.html").read_text(), content_type="text/html")
+    return web.Response(text=(BASE_DIR / "static" / "index.html").read_text(), content_type="text/html")
 
 async def handle_analyze(request):
-    data = await request.json()
+    data, err = await get_json(request)
+    if err: return err
     url = data.get("url","").strip()
     if not url: return web.json_response({"error":"URL required"})
     if not url.startswith("http"): url = "https://"+url
+    if not host_is_public(url): return web.json_response(SSRF_ERROR, status=400)
     start = time.time()
     async with aiohttp.ClientSession(trust_env=True) as session:
         status, html, headers, final_url = await fetch_url(url, session)
@@ -340,22 +422,28 @@ async def handle_analyze(request):
     return web.json_response(analyze_seo(url, status, html, headers, elapsed, final_url))
 
 async def handle_ai_fixes(request):
-    data = await request.json()
+    data, err = await get_json(request)
+    if err: return err
     url = data.get("url",""); results = data.get("results",{}); meta = results.get("meta",{})
     checks = "\n".join([f"- [{c['status'].upper()}] {c['name']}: {c['message']}" for c in results.get("checks",[])])
     prompt = f"""SEO fixes for {url}\nTitle: {meta.get('title','')}\nDesc: {meta.get('description','')}\nH1: {meta.get('h1_text','')}\nLang: {meta.get('lang','')}\nWords: {meta.get('word_count',0)}\nChecks:\n{checks}\nReturn JSON: {{"seo_report":"3 sentences","critical_issues":[""],"fixes":[{{"title":"","priority":"high|medium|low","category":"meta|content|structure|technical|schema","description":"","code_fix":""}}],"optimized_title":"","optimized_description":"","schema_markup":"JSON-LD code","keywords":["10"],"internal_link_suggestions":[""],"content_improvements":[""],"robots_txt":"proper robots.txt"}}"""
     return web.json_response(await ai_json(prompt))
 
 async def handle_keyword_research(request):
-    data = await request.json(); topic = data.get("topic","")
+    data, err = await get_json(request)
+    if err: return err
+    topic = data.get("topic","")
     prompt = f"""SEO keywords for: {topic}\nReturn JSON: {{"primary":["5 main"],"secondary":["10 supporting"],"long_tail":["10 phrases"],"local":["5 location-based"],"questions":["10 PAA questions"],"content_ideas":["5 titles"]}}"""
     return web.json_response(await ai_json(prompt))
 
 async def handle_competitor(request):
-    data = await request.json()
+    data, err = await get_json(request)
+    if err: return err
     u1,u2 = data.get("url1","").strip(), data.get("url2","").strip()
     if not u1.startswith("http"): u1 = "https://"+u1
     if not u2.startswith("http"): u2 = "https://"+u2
+    if not host_is_public(u1) or not host_is_public(u2):
+        return web.json_response(SSRF_ERROR, status=400)
     results = {}
     async with aiohttp.ClientSession(trust_env=True) as session:
         for label, u in [("site1",u1),("site2",u2)]:
@@ -369,35 +457,45 @@ async def handle_competitor(request):
     return web.json_response(comparison)
 
 async def handle_content_optimize(request):
-    data = await request.json()
+    data, err = await get_json(request)
+    if err: return err
     prompt = f"""Optimize content for: {data.get('url','')}\nContent:\n{data.get('html','')[:4000]}\nReturn JSON: {{"title_suggestions":["3"],"description_suggestions":["3"],"heading_suggestions":[""],"content_gaps":[""],"readability_score":"","improvement_priorities":["5"]}}"""
     return web.json_response(await ai_json(prompt))
 
 async def handle_robots_generate(request):
-    data = await request.json()
-    result = await ask_gemini(f"Generate robots.txt for {data.get('url','')} (type: {data.get('type','general')}). Include sitemap. Return only robots.txt content.", 0.1, 1000)
+    data, err = await get_json(request)
+    if err: return err
+    result = await ask_ai(f"Generate robots.txt for {data.get('url','')} (type: {data.get('type','general')}). Include sitemap. Return only robots.txt content.", 0.1, 1000)
     return web.json_response({"robots_txt": result.strip()})
 
 async def handle_schema_generate(request):
-    data = await request.json()
+    data, err = await get_json(request)
+    if err: return err
     prompt = f"""Generate JSON-LD for {data.get('url','')} type:{data.get('type','auto')}\nTitle: {data.get('meta',{}).get('title','')}\nReturn JSON: {{"schema_type":"","schema_jsonld":"code","explanation":"","additional_schemas":[""]}}"""
     return web.json_response(await ai_json(prompt))
 
 async def handle_bulk_analyze(request):
-    data = await request.json(); urls = data.get("urls",[]); results = []
+    data, err = await get_json(request)
+    if err: return err
+    urls = data.get("urls",[]); results = []
     async with aiohttp.ClientSession(trust_env=True) as session:
         for u in urls[:10]:
             u = u.strip()
             if not u.startswith("http"): u = "https://"+u
+            if not host_is_public(u): continue
             start = time.time()
             status, html, headers, final_url = await fetch_url(u, session)
             elapsed = time.time()-start
-            r = analyze_seo(u, status, html, headers, elapsed, final_url); r.pop("html",None); results.append(r)
+            results.append(analyze_seo(u, status, html, headers, elapsed, final_url))
     return web.json_response({"results": results})
 
 async def handle_page_speed(request):
-    data = await request.json(); url = data.get("url","").strip()
+    data, err = await get_json(request)
+    if err: return err
+    url = data.get("url","").strip()
+    if not url: return web.json_response({"error":"URL required"})
     if not url.startswith("http"): url = "https://"+url
+    if not host_is_public(url): return web.json_response(SSRF_ERROR, status=400)
     start = time.time()
     async with aiohttp.ClientSession(trust_env=True) as session:
         status, html, headers, final_url = await fetch_url(url, session)
@@ -419,7 +517,9 @@ async def handle_page_speed(request):
     return web.json_response(r)
 
 async def handle_social_preview(request):
-    data = await request.json(); meta = data.get("meta",{})
+    data, err = await get_json(request)
+    if err: return err
+    meta = data.get("meta",{})
     og = meta.get("og",{}); tw = meta.get("twitter",{})
     return web.json_response({
         "google":{"title":meta.get("title","(no title)"),"description":meta.get("description","(no desc)"),"url":meta.get("canonical","")},
@@ -428,22 +528,32 @@ async def handle_social_preview(request):
     })
 
 async def handle_pdf_report(request):
-    data = await request.json()
+    data, err = await get_json(request)
+    if err: return err
     fixes = data.get("fixes", None)
     pdf_bytes = generate_pdf_report(data, fixes)
-    return web.Response(body=pdf_bytes, content_type="application/pdf", headers={"Content-Disposition": f"attachment; filename=seo-report-{data.get('url','').split('//')[-1][:30]}.pdf"})
+    filename = safe_report_filename(data.get("url",""))
+    return web.Response(body=pdf_bytes, content_type="application/pdf",
+                        headers={"Content-Disposition": f"attachment; filename={filename}"})
 
 async def handle_domain_authority(request):
-    data = await request.json(); url = data.get("url","").strip()
+    data, err = await get_json(request)
+    if err: return err
+    url = data.get("url","").strip()
+    if not url: return web.json_response({"error":"URL required"})
     if not url.startswith("http"): url = "https://"+url
+    if not host_is_public(url): return web.json_response(SSRF_ERROR, status=400)
     async with aiohttp.ClientSession(trust_env=True) as session:
         result = await check_domain_authority(url, session)
     return web.json_response(result)
 
 async def handle_schedule_add(request):
-    data = await request.json()
+    data, err = await get_json(request)
+    if err: return err
+    url = data.get("url","").strip()
+    if not url: return web.json_response({"error":"URL required"})
     sched = load_schedule()
-    entry = {"url": data.get("url",""), "interval": data.get("interval","daily"), "created": datetime.now().isoformat(), "last_run": None, "enabled": True}
+    entry = {"url": url, "interval": data.get("interval","daily"), "created": datetime.now().isoformat(), "last_run": None, "enabled": True}
     sched["scans"].append(entry)
     save_schedule(sched)
     return web.json_response({"ok": True, "schedule": sched})
@@ -452,10 +562,13 @@ async def handle_schedule_list(request):
     return web.json_response(load_schedule())
 
 async def handle_schedule_run(request):
-    data = await request.json()
+    data, err = await get_json(request)
+    if err: return err
     url = data.get("url","").strip()
-    if not url.startswith("http"): url = "https://"+url
+    if not url: return web.json_response({"error":"URL required"})
     results = await run_scheduled_scan(url)
+    if results is None:
+        return web.json_response(SSRF_ERROR, status=400)
     return web.json_response(results)
 
 async def handle_scan_history(request):
@@ -465,24 +578,74 @@ async def handle_scan_history(request):
         try:
             d = json.loads(s.read_text())
             history.append({"file": s.name, "url": d.get("url",""), "score": d.get("score",0), "timestamp": d.get("timestamp","")})
-        except: pass
+        except Exception as e:
+            print(f"scan history: skipping unreadable file {s.name}: {e}")
     return web.json_response({"scans": history})
 
 async def handle_static(request):
-    fp = Path("static") / request.match_info["filename"]
-    if fp.exists(): return web.FileResponse(fp)
-    return web.Response(status=404)
+    name = request.match_info["filename"]
+    # Path traversal guard: plain filename only, resolved under static/
+    if "/" in name or "\\" in name or ".." in name:
+        return web.Response(status=404)
+    fp = (STATIC_DIR / name).resolve()
+    if not str(fp).startswith(str(STATIC_DIR) + os.sep) or not fp.is_file():
+        return web.Response(status=404)
+    return web.FileResponse(fp)
 
 
 # ============================================================
-# EMAIL + GSC SERVICES
+# SITEMAP GENERATOR (bounded same-domain BFS crawl)
 # ============================================================
-sys.path.insert(0, '/root/Documents/Codex/seoforge')
+async def handle_sitemap(request):
+    data, err = await get_json(request)
+    if err: return err
+    url = data.get("url","").strip()
+    if not url: return web.json_response({"error":"URL required"})
+    if not url.startswith("http"): url = "https://"+url
+    if not host_is_public(url): return web.json_response(SSRF_ERROR, status=400)
+    base_host = urllib.parse.urlparse(url).hostname or ""
+    seen, queue, pages = set(), [url], []
+    sem = asyncio.Semaphore(5)
+
+    async with aiohttp.ClientSession(trust_env=True) as session:
+        async def crawl_one(u):
+            async with sem:
+                status, html, _h, _f = await fetch_url(u, session)
+                return u, status, html
+        while queue and len(pages) < 40:
+            batch = []
+            while queue and len(batch) < 5:
+                u = queue.pop(0)
+                if u not in seen:
+                    seen.add(u); batch.append(u)
+            for u, status, html in await asyncio.gather(*[crawl_one(u) for u in batch]):
+                if status == 200 and html:
+                    pages.append(u)
+                    soup = BeautifulSoup(html, "lxml")
+                    for a in soup.find_all("a", href=True):
+                        link = urllib.parse.urljoin(u, a["href"].split("#")[0])
+                        p = urllib.parse.urlparse(link)
+                        if p.scheme in ("http", "https") and p.hostname == base_host and link not in seen:
+                            queue.append(link)
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    xml = ['<?xml version="1.0" encoding="UTF-8"?>',
+           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for p in pages:
+        xml.append(f"  <url><loc>{escape(p)}</loc><lastmod>{today}</lastmod></url>")
+    xml.append("</urlset>")
+    return web.Response(text="\n".join(xml), content_type="application/xml")
+
+
+# EMAIL + GSC SERVICES (same directory; no path hacks needed)
 from email_service import load_config as email_cfg, save_config as email_save, send_email, build_report_html
-from gsc_service import load_config as gsc_cfg, save_config as gsc_save, get_auth_url, exchange_code as gsc_exchange, get_site_summary, get_search_analytics, get_url_inspection, get_sitemaps
+from gsc_service import (load_config as gsc_cfg, save_config as gsc_save, get_auth_url,
+                         exchange_code as gsc_exchange, get_site_summary, get_search_analytics,
+                         get_url_inspection, get_sitemaps, TOKEN_FILE as GSC_TOKEN_FILE)
 
 async def handle_email_config(request):
-    data = await request.json()
+    data, err = await get_json(request)
+    if err: return err
     cfg = email_cfg()
     cfg.update({k: data[k] for k in ["smtp_host","smtp_port","smtp_user","smtp_pass","from_name","from_email"] if k in data})
     if data.get("test"):
@@ -501,7 +664,8 @@ async def handle_email_get_config(request):
     return web.json_response(safe)
 
 async def handle_email_send_report(request):
-    data = await request.json()
+    data, err = await get_json(request)
+    if err: return err
     to = data.get("to", "")
     results = data.get("results", {})
     fixes = data.get("fixes", None)
@@ -511,12 +675,13 @@ async def handle_email_send_report(request):
     # Generate PDF
     pdf_bytes = generate_pdf_report(results, fixes)
     subject = f"🔍 SEO Report: {results.get('url','')} — Score {results.get('score',0)}/100"
-    result = send_email(to, subject, html, pdf_bytes, f"seo-report-{results.get('url','').split('//')[-1][:20]}.pdf")
+    result = send_email(to, subject, html, pdf_bytes, safe_report_filename(results.get("url","")))
     return web.json_response(result)
 
 async def handle_email_schedule(request):
-    data = await request.json()
-    sched_file = Path("/root/Documents/Codex/seoforge/email_schedule.json")
+    data, err = await get_json(request)
+    if err: return err
+    sched_file = EMAIL_SCHEDULE_FILE
     sched = json.loads(sched_file.read_text()) if sched_file.exists() else {"emails": []}
     sched["emails"].append({
         "to": data.get("to",""), "url": data.get("url",""),
@@ -528,7 +693,8 @@ async def handle_email_schedule(request):
 
 # --- GSC ROUTES ---
 async def handle_gsc_config(request):
-    data = await request.json()
+    data, err = await get_json(request)
+    if err: return err
     cfg = gsc_cfg()
     cfg.update({k: data[k] for k in ["client_id","client_secret","redirect_uri","property_url"] if k in data})
     gsc_save(cfg)
@@ -536,8 +702,11 @@ async def handle_gsc_config(request):
 
 async def handle_gsc_get_config(request):
     cfg = gsc_cfg()
-    token_file = Path("/root/Documents/Codex/seoforge/gsc_token.json")
-    has_token = token_file.exists() and bool(json.loads(token_file.read_text()).get("access_token"))
+    has_token = False
+    try:
+        has_token = GSC_TOKEN_FILE.exists() and bool(json.loads(GSC_TOKEN_FILE.read_text()).get("access_token"))
+    except Exception as e:
+        print(f"gsc token read failed: {e}")
     return web.json_response({"configured": cfg.get("configured", False) or bool(cfg.get("client_id")), "has_token": has_token, "property_url": cfg.get("property_url","")})
 
 async def handle_gsc_callback(request):
@@ -563,13 +732,15 @@ async def handle_gsc_summary(request):
     return web.json_response(result)
 
 async def handle_gsc_analytics(request):
-    data = await request.json()
+    data, err = await get_json(request)
+    if err: return err
     days = data.get("days", 28)
     result = await get_search_analytics(days)
     return web.json_response(result)
 
 async def handle_gsc_inspect(request):
-    data = await request.json()
+    data, err = await get_json(request)
+    if err: return err
     url = data.get("url", "")
     result = await get_url_inspection(url)
     return web.json_response(result)
@@ -590,8 +761,13 @@ async def cors_middleware(request, handler):
     resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     return resp
 
+async def start_scheduler(app):
+    # create_task (not awaited) so startup completes and the server binds
+    asyncio.create_task(scheduler_loop())
+
 def main():
     app = web.Application(middlewares=[cors_middleware])
+    app.on_startup.append(start_scheduler)
     app.router.add_get("/", handle_index)
     app.router.add_post("/api/analyze", handle_analyze)
     app.router.add_post("/api/ai-fixes", handle_ai_fixes)
@@ -600,6 +776,7 @@ def main():
     app.router.add_post("/api/content-optimize", handle_content_optimize)
     app.router.add_post("/api/robots-generate", handle_robots_generate)
     app.router.add_post("/api/schema-generate", handle_schema_generate)
+    app.router.add_post("/api/sitemap", handle_sitemap)
     app.router.add_post("/api/bulk", handle_bulk_analyze)
     app.router.add_post("/api/page-speed", handle_page_speed)
     app.router.add_post("/api/social-preview", handle_social_preview)

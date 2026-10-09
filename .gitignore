@@ -3,6 +3,8 @@ __pycache__/
 *.pyo
 .env
 .env.*
+# Runtime data (scans, configs, schedules, tokens) — all under SEOFORGE_DATA_DIR
+data/
 gsc_config.json
 gsc_token.json
 email_config.json

@@ -31,7 +31,10 @@ Open http://localhost:8888 in your browser.
 ## Configuration
 
 ### AI (OmniRoute, free)
-Set the `OMNIROUTE_URL` environment variable to your local OmniRoute gateway (e.g. `http://localhost:20128/v1`). Optional: `OMNIROUTE_MODEL` (default `auto`), `OMNIROUTE_API_KEY` if your gateway requires one. There is no paid-key fallback by design — if the gateway is unreachable, AI features return an error instead of billing anything.
+Set the `OMNIROUTE_URL` environment variable to your OmniRoute gateway (e.g. `http://localhost:20128/v1`). Optional: `OMNIROUTE_MODEL` (default `auto`), `OMNIROUTE_API_KEY` if your gateway requires one. There is no paid-key fallback by design — if the gateway is unreachable, AI features return an error instead of billing anything. On Render, set `OMNIROUTE_URL` to a gateway reachable from Render's network.
+
+### Data directory
+Scans, configs, and schedules are stored in the data directory (`./data` by default, override with `SEOFORGE_DATA_DIR`). Note: Render's free tier has an ephemeral filesystem — data is lost on each redeploy/restart. The app listens on `PORT` (Render sets this automatically), falling back to `SEOFORGE_PORT` or `8888`.
 
 ### Email Reports
 In the **Email** tab, configure your SMTP server:
